@@ -1,0 +1,117 @@
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>花蓮縣各校載具月使用率檢核表生成器</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      text-align: center;
+    }
+    #file-container {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    .indicator {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+  <h1>花蓮縣各校載具月使用率檢核表生成器</h1>
+  <div id="file-container">
+    <input type="file" id="file-input" accept=".xlsx, .xls" style="display:none;">
+    <button id="upload-btn">讀取檔案</button>
+  </div>
+  <table id="result-table">
+    <thead>
+      <tr>
+        <th>學校名稱</th>
+        <th>月使用率</th>
+        <th>未使用數</th>
+        <th>燈號</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- 讀取後的資料將呈現在這裡 -->
+    </tbody>
+  </table>
+
+  <!-- 引入 xlsx.js 讀取 Excel 檔案 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script>
+    document.getElementById('upload-btn').addEventListener('click', function() {
+      document.getElementById('file-input').click();
+    });
+
+    document.getElementById('file-input').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = e.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        // 讀取第一個工作表
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        // 以 2D 陣列的方式取得所有資料
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        const tbody = document.getElementById('result-table').querySelector('tbody');
+        tbody.innerHTML = '';
+        
+        // 從第二列開始讀取（假設第一列為表頭）
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          // Excel 中 F 欄位：索引 5, G 欄位：索引 6, J 欄位：索引 9
+          const schoolName = row[5] !== undefined ? row[5] : '';
+          const usageRateRaw = row[6] !== undefined ? row[6] : '0';
+          // 將使用率轉為數值並乘以100 (假設原始數值為小數)
+          const usageRate = parseFloat(usageRateRaw) * 100;
+          const notUsed = row[9] !== undefined ? row[9] : '';
+
+          // 根據月使用率決定燈號顏色
+          let color = '';
+          if (usageRate < 70) {
+            color = 'red';
+          } else if (usageRate >= 70 && usageRate < 80) {
+            color = 'orange';
+          } else if (usageRate >= 80 && usageRate < 90) {
+            color = 'yellow';
+          } else if (usageRate >= 90) {
+            color = 'green';
+          }
+          
+          const indicatorHTML = '<span class="indicator" style="background-color:' + color + '"></span>';
+          
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + schoolName + '</td>' +
+                         '<td>' + usageRate.toFixed(2) + '%</td>' +
+                         '<td>' + notUsed + '</td>' +
+                         '<td>' + indicatorHTML + '</td>';
+          tbody.appendChild(tr);
+        }
+      };
+      reader.readAsBinaryString(file);
+    });
+  </script>
+</body>
+</html>
+```
