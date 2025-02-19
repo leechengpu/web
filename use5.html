@@ -1,0 +1,173 @@
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>花蓮縣各校載具月使用率檢核表生成器</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      text-align: center;
+    }
+    #controls {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    button {
+      margin: 0 5px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    .indicator {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+  <h1>花蓮縣各校載具月使用率檢核表生成器</h1>
+  <div id="controls">
+    <input type="file" id="file-input" accept=".xlsx, .xls" style="display:none;">
+    <button id="upload-btn">讀取檔案</button>
+    <button id="sort-usage-btn">按使用率排序</button>
+    <button id="sort-notused-btn">按未使用數排序</button>
+    <button id="save-pdf-btn">儲存</button>
+  </div>
+  <table id="result-table">
+    <thead>
+      <tr>
+        <th>學校名稱</th>
+        <th>月使用率</th>
+        <th>未使用數</th>
+        <th>燈號</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- 讀取後的資料將呈現在這裡 -->
+    </tbody>
+  </table>
+
+  <!-- 引入 xlsx.js 讀取 Excel 檔案 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- 引入 html2pdf.js 用於將畫面存成PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+  <script>
+    let tableData = [];
+
+    // 渲染表格資料的函數
+    function renderTable(data) {
+      const tbody = document.getElementById('result-table').querySelector('tbody');
+      tbody.innerHTML = '';
+      data.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + item.schoolName + '</td>' +
+                       '<td>' + item.usageRateDisplay.toFixed(2) + '%</td>' +
+                       '<td>' + Math.round(item.notUsed) + '</td>' +
+                       '<td>' + '<span class="indicator" style="background-color:' + item.color + '"></span>' + '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('upload-btn').addEventListener('click', function() {
+      document.getElementById('file-input').click();
+    });
+
+    document.getElementById('file-input').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = e.target.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        // 讀取第一個工作表
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        // 以 2D 陣列的方式取得所有資料
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        tableData = []; // 重置資料
+        
+        // 從第二列開始讀取（假設第一列為表頭）
+        for (let i = 1; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          // Excel 中：
+          // F 欄位：索引 5 為學校名稱
+          // G 欄位：索引 6 為使用率 (原始數值為小數，顯示時乘以100)
+          // I 欄位：索引 8 為總臺數
+          const schoolName = row[5] !== undefined ? row[5] : '';
+          const usageRateRaw = row[6] !== undefined ? row[6] : '0';
+          const totalUnitsRaw = row[8] !== undefined ? row[8] : '0';
+          
+          const usageRateDecimal = parseFloat(usageRateRaw);
+          const usageRateDisplay = usageRateDecimal * 100;
+          const totalUnits = parseFloat(totalUnitsRaw);
+          // 未使用數 = 總臺數 - (使用率(小數)*總臺數)
+          const notUsed = totalUnits - (usageRateDecimal * totalUnits);
+          
+          // 根據月使用率決定燈號顏色 (以顯示值來判斷)
+          let color = '';
+          if (usageRateDisplay < 70) {
+            color = 'red';
+          } else if (usageRateDisplay >= 70 && usageRateDisplay < 80) {
+            color = 'orange';
+          } else if (usageRateDisplay >= 80 && usageRateDisplay < 90) {
+            color = 'yellow';
+          } else if (usageRateDisplay >= 90) {
+            color = 'green';
+          }
+          
+          tableData.push({
+            schoolName: schoolName,
+            usageRateDisplay: usageRateDisplay,
+            notUsed: notUsed,
+            color: color
+          });
+        }
+        renderTable(tableData);
+      };
+      reader.readAsBinaryString(file);
+    });
+
+    // 按使用率排序 (由低到高)
+    document.getElementById('sort-usage-btn').addEventListener('click', function() {
+      tableData.sort((a, b) => a.usageRateDisplay - b.usageRateDisplay);
+      renderTable(tableData);
+    });
+
+    // 按未使用數排序 (由低到高)
+    document.getElementById('sort-notused-btn').addEventListener('click', function() {
+      tableData.sort((a, b) => a.notUsed - b.notUsed);
+      renderTable(tableData);
+    });
+
+    // 儲存畫面為 PDF 檔案
+    document.getElementById('save-pdf-btn').addEventListener('click', function() {
+      // 設定要轉換成PDF的內容，這裡選取整個body
+      const element = document.body;
+      // 選擇轉換選項
+      const opt = {
+        margin:       0.5,
+        filename:     '花蓮縣各校載具月使用率檢核表.pdf',
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      html2pdf().set(opt).from(element).save();
+    });
+  </script>
+</body>
+</html>
+```
