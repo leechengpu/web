@@ -119,10 +119,8 @@
           
           // 根據月使用率決定燈號顏色 (以顯示值來判斷)
           let color = '';
-          if (usageRateDisplay < 70) {
+          if (usageRateDisplay < 80) {
             color = 'red';
-          } else if (usageRateDisplay >= 70 && usageRateDisplay < 80) {
-            color = 'orange';
           } else if (usageRateDisplay >= 80 && usageRateDisplay < 90) {
             color = 'yellow';
           } else if (usageRateDisplay >= 90) {
